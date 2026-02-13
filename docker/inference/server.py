@@ -12,7 +12,8 @@ LOG_PATH = "/app/logs/predictions.log"
 model = None
 
 # TODO: Load the trained model from the shared volume. Use joblib.load() with MODEL_PATH
-model = ...
+if os.path.exists(MODEL_PATH):
+    model = joblib.load(MODEL_PATH)
 
 # Wine feature names for reference (13 features):
 # alcohol, malic_acid, ash, alcalinity_of_ash, magnesium, total_phenols,
@@ -25,11 +26,19 @@ def predict():
         # TODO: Get the input array from the request JSON body
         # The request body should have a key "input" with a list of 13 feature values
         data = request.get_json()
-        features = ...
+        if not data or "input" not in data:
+            raise ValueError("Request JSON must contain key 'input'.")
+        features = data["input"]
 
         # TODO: Convert to numpy array, reshape for single prediction, and predict
         # HINT: use np.array().reshape(1, -1)
-        prediction = ...
+        if model is None:
+            raise ValueError("Model not loaded. Check that /app/models/wine_model.pkl exists.")
+        if not isinstance(features, list) or len(features) != 13:
+            raise ValueError("'input' must be a list of 13 numeric feature values.")
+
+        features_array = np.array(features, dtype=float).reshape(1, -1)
+        prediction = model.predict(features_array)
 
         # Map prediction to wine class name
         wine_classes = {0: "class_0", 1: "class_1", 2: "class_2"}
@@ -38,6 +47,10 @@ def predict():
         # TODO: Log the prediction to the bind-mounted log file
         # Append a line to LOG_PATH with the timestamp, input features, and prediction result
         # Example log line: "2026-02-09 12:00:00 | input: [13.2, 1.78, ...] | prediction: class_0"
+        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_PATH, "a", encoding="utf-8") as log_file:
+            log_file.write(f"{timestamp} | input: {features} | prediction: {result}\n")
 
 
         return jsonify({"prediction": result})
